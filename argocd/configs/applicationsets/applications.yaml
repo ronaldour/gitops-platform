@@ -1,0 +1,48 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: applications
+  namespace: argocd
+spec:
+  generators:
+  - clusters:
+      selector:
+        matchExpressions:
+        - key: schema
+          operator: DoesNotExist
+        matchLabels:
+          argocd.argoproj.io/secret-type: cluster
+  template:
+    metadata:
+      name: 'applications-{{.metadata.labels.cluster}}-{{.metadata.labels.environment}}'
+      namespace: argocd
+      labels:
+        application: applications
+        cluster: '{{.metadata.labels.cluster}}'
+        region: '{{.metadata.labels.region}}'
+        environment: '{{.metadata.labels.environment}}'
+    spec:
+      project: applications
+      syncPolicy:
+        automated: {}
+      source:
+        repoURL: git@gitlab.com:ronaldour/infrastructure/gitops/applications.git
+        targetRevision: main
+        path: '.'
+        helm:
+          ignoreMissingValueFiles: true
+          valueFiles:
+          - values.yaml
+          values: |
+            server: '{{.server}}'
+            config:
+              region: '{{.metadata.labels.region}}'
+              regionAlias: '{{.metadata.labels.regionAlias}}'
+              accountId: '{{.metadata.labels.accountId}}'
+              environment: '{{.metadata.labels.environment}}'
+              cluster: '{{.metadata.labels.cluster}}'
+              clusterName: '{{.metadata.labels.clusterName}}'
+              appSuffix: '{{.metadata.labels.appSuffix | default ""}}'
+      destination:
+        server: https://kubernetes.default.svc # Deploy on cluster where Argo CD is being installed
+        namespace: argocd

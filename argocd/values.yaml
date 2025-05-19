@@ -1,0 +1,256 @@
+
+global:
+  domain: argocd.example.com
+
+  image:
+    repository: quay.io/argoproj/argocd #TODO - Use pull through cache
+
+  securityContext:
+    fsGroup: 999
+
+configs:
+  cm:
+    params:
+      resource.customizations.health.argoproj.io_Application: |
+        hs = {}
+        hs.status = "Progressing"
+        hs.message = ""
+        if obj.status ~= nil then
+          if obj.status.helath ~= nil then
+            hs.status = obj.status.health.status
+            if obj.status.health.message ~= nil then
+              hs.message = obj.status.health.message
+            end
+          end
+        end
+        return hs
+
+      resource.customizations.ignoreDifferences.admissionregistration.k8s.io_MutatingWebhookConfiguration: |
+        jqPathExpressions:
+        - '.webhooks[]?.clientConfig.caBundle'
+        - '.webhooks[]?.failurePolicy'
+        managedFieldsManagers:
+        - pilot-discovery
+
+      resource.customizations.ignoreDifferences.admissionregistration.k8s.io_ValidatingWebhookConfiguration: |
+        jqPathExpressions:
+        - '.webhooks[]?.clientConfig.caBundle'
+        - '.webhooks[]?.failurePolicy'
+        managedFieldsManagers:
+        - pilot-discovery
+
+      resource.customizations.ignoreDifferences.apiextensions.k8s.io_CustomResourceDefinition: |
+        jqPathExpressions:
+        - '..|.allowEmptyValue?'
+
+      # accounts.service-account: apiKey
+
+
+  rbac:
+
+    policy.default: role:safe-readonly
+    policy.csv: |
+      # --------------- Roles -------------- #
+
+      # Non Prod restriction role
+      p, role:non-prod, applications, *, */*prod*, deny
+      p, role:non-prod, applications, *, */*ops*, deny
+
+      # Custom Read Only role (Read Only access to applications except prod)
+      g, role:safe-readonly, role:readonly
+      g, role:safe-readonly, role:non-prod
+
+      # Custom Deploy role (Read Write access to ALL applications)
+      p, role:deploy, applications, get, */*, allow
+      p, role:deploy, applications, sync, */*, allow
+
+      # -------------- Groups -------------- #
+
+      g, Admins, role:admin
+
+      # ----------- System Users ----------- #
+
+      g, service-account, role:deploy
+
+  secret:
+    argocdServerAdminPassword: $2a$10$hQ7cF3PSPrbHpBiremhEHuzXFKsg9F/vQb2l9v6evfitCb26pZqhi # This is a bcrypt hash
+    argocdServerAdminPasswordMtime: '2024-00-00T00:00:00Z'
+    
+  credentialTemplates:
+    gitops-ssh:
+      url: git@gitlab.com:ronaldour/gitops
+      sshPrivateKey: <path:platform/argocd#ssh-private-key>
+
+
+controller:
+
+  # serviceAccount:
+  #   annotations:
+  #     eks.amazonaws.com/role-arn: <argocd-role> # Role without permissions to authenticate Argo CD to access remote EKS clusters
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 2Gi
+    limits:
+      memory: 2Gi
+
+  # metrics:
+  #   enabled: true
+  #   applicationLabels:
+  #     enabled: true
+  #     labels:
+  #     - application
+  #     - account
+  #     - region
+  #     - environment
+  #     serviceMonitor:
+  #       enabled: true
+
+server:
+   
+  # serviceAccount:
+  #   annotations:
+  #     eks.amazonaws.com/role-arn: <argocd-role> # Role without permissions to authenticate Argo CD to access remote EKS clusters
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 256Mi
+
+  ingress:
+    enabled: true
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internal
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+      alb.ingress.kubernetes.io/backend-protocol: HTTPS
+      alb.ingress.kubernetes.io/ssl-redirect: "443"
+      alb.ingress.kubernetes.io/tags: Service=argocd
+    ingressClassName: alb
+    hosts:
+    - argocd.example.com
+
+  # metrics:
+  #   enabled: true
+  #   serviceMonitor:
+  #     enabled: true
+
+repoServer:
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 512Mi
+
+  extraContainers:
+  - name: helm-cmp
+    command:
+    - '/var/run/argocd/argocd-cmp-server'
+    image: argocd-helmfile-cmp:v0.3.0 # UPDATE IMAGE
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 999
+    env:
+    # Argo CD Vault Plugin configuration
+    - name: AVP_TYPE
+      value: awssecretsmanager
+    - name: AWS_REGION
+      value: us-east-1
+    # Git credentials to use in helmfile
+    # - name: GITLAB_USERNAME
+    #   valueFrom:
+    #     secretKeyRef:
+    #       name: gitlab-repository-credentials
+    #       key: username
+    # - name: GITLAB_PASSWORD
+    #   valueFrom:
+    #     secretKeyRef:
+    #       name: gitlab-repository-credentials
+    #       key: password
+    volumeMounts:
+    - name: var-files
+      mountPath: /var/run/argocd
+    - name: plugins
+      mountPath: /home/argocd/cmp-server/plugins
+    - name: helm-cmp-tmp
+      mountPath: /tmp
+
+  volumes:
+  - name: helm-cmp-tmp
+    emptyDir: {}
+         
+  # metrics:
+  #   enabled: true
+  #   serviceMonitor:
+  #     enabled: true
+
+applicationSet:
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 128Mi
+
+  # metrics:
+  #   enabled: true
+  #   serviceMonitor:
+  #     enabled: true
+
+notifications:
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 128Mi
+
+  # metrics:
+  #   enabled: true
+  #   serviceMonitor:
+  #     enabled: true
+
+
+  # # notifiers:
+  # #   service.slack: |
+  # #     token: $slack-token
+  # #   service.grafana: |
+  # #     apiUrl: https://grafana.example.com/api
+  # #     apiKey: $grafana-token
+
+  # subscriptions: []
+  # templates: {}
+  # triggers: {}
+
+dex:
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      memory: 64Mi
+
+redis:
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 128Mi
+
+  # metrics:
+  #   enabled: true
+  #   serviceMonitor:
+  #     enabled: false
+
+redisSecretInit:
+  enabled: false

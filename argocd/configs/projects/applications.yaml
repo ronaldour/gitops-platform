@@ -1,0 +1,15 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: applications
+  namespace: argocd
+spec:
+  description: Argo CD application defintion resources (app-of-apps)
+  sourceRepos:
+  - '*' #TODO - restrict to applications repo only
+  destinations:
+  - namespace: argocd
+    server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+  - group: argoproj.io
+    kind: Application
