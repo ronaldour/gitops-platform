@@ -1,0 +1,24 @@
+crds:
+  enabled: true
+
+replicaCount: 2
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+image:
+  repository: quay.io/jetstack/cert-manager-controller # TODO - use pull through cache
+
+prometheus:
+  enabled: false
+
+webhook:
+  replicaCount: 2
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+  image:
+    repository: quay.io/jetstack/cert-manager-webhook # TODO

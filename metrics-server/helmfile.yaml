@@ -1,0 +1,12 @@
+{{- $config := (requiredEnv "ARGOCD_ENV_CONFIG") | fromJson }}
+
+repositories:
+- name: metrics-server
+  url: https://kubernetes-sigs.github.io/metrics-server/
+
+releases:
+- name: metrics-server
+  chart: metrics-server/metrics-server
+  version: 3.12.2
+  values:
+  - values.yaml

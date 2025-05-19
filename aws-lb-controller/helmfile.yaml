@@ -1,0 +1,15 @@
+{{- $config := (requiredEnv "ARGOCD_ENV_CONFIG") | fromJson }}
+
+repositories:
+- name: eks
+  url: https://aws.github.io/eks-charts
+
+releases:
+- name: aws-load-balancer-controller
+  chart: eks/aws-load-balancer-controller
+  version: 1.11.0
+  # apiVersions:
+  # - monitoring.coreos.com/v1
+  values:
+  - values.yaml
+  - clusterName: {{ $config.clusterName }}

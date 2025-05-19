@@ -1,0 +1,21 @@
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    memory: 128Mi
+
+
+# topologySpreadConstraints: {}
+
+enableCertManager: true
+
+# # The AWS region for the kubernetes cluster. Set to use KIAM or kube2iam for example.
+# region:
+
+# # The VPC ID for the Kubernetes cluster. Set this manually when your pods are unable to use the metadata service to determine this automatically
+# vpcId:
+
+enableShield: false
+enableWaf: false
+enableWafv2: false
